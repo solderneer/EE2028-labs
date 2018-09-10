@@ -236,15 +236,15 @@
  195              	.Letext0:
 DEFINED SYMBOLS
                             *ABS*:0000000000000000 main.c
-/var/folders/qx/3thh6vs13c76w0sbjx53xp240000gn/T//ccqi0uIl.s:20     .text.pfa:0000000000000000 $t
-/var/folders/qx/3thh6vs13c76w0sbjx53xp240000gn/T//ccqi0uIl.s:25     .text.pfa:0000000000000000 pfa
-/var/folders/qx/3thh6vs13c76w0sbjx53xp240000gn/T//ccqi0uIl.s:52     .text.pfa:0000000000000010 $d
-/var/folders/qx/3thh6vs13c76w0sbjx53xp240000gn/T//ccqi0uIl.s:59     .rodata:0000000000000000 $d
-/var/folders/qx/3thh6vs13c76w0sbjx53xp240000gn/T//ccqi0uIl.s:78     .text.main:0000000000000000 $t
-/var/folders/qx/3thh6vs13c76w0sbjx53xp240000gn/T//ccqi0uIl.s:83     .text.main:0000000000000000 main
-/var/folders/qx/3thh6vs13c76w0sbjx53xp240000gn/T//ccqi0uIl.s:181    .text.main:0000000000000098 $d
-/var/folders/qx/3thh6vs13c76w0sbjx53xp240000gn/T//ccqi0uIl.s:192    .bss:0000000000000000 loop.4025
-/var/folders/qx/3thh6vs13c76w0sbjx53xp240000gn/T//ccqi0uIl.s:191    .bss:0000000000000000 $d
+/var/folders/qx/3thh6vs13c76w0sbjx53xp240000gn/T//ccVBxBRh.s:20     .text.pfa:0000000000000000 $t
+/var/folders/qx/3thh6vs13c76w0sbjx53xp240000gn/T//ccVBxBRh.s:25     .text.pfa:0000000000000000 pfa
+/var/folders/qx/3thh6vs13c76w0sbjx53xp240000gn/T//ccVBxBRh.s:52     .text.pfa:0000000000000010 $d
+/var/folders/qx/3thh6vs13c76w0sbjx53xp240000gn/T//ccVBxBRh.s:59     .rodata:0000000000000000 $d
+/var/folders/qx/3thh6vs13c76w0sbjx53xp240000gn/T//ccVBxBRh.s:78     .text.main:0000000000000000 $t
+/var/folders/qx/3thh6vs13c76w0sbjx53xp240000gn/T//ccVBxBRh.s:83     .text.main:0000000000000000 main
+/var/folders/qx/3thh6vs13c76w0sbjx53xp240000gn/T//ccVBxBRh.s:181    .text.main:0000000000000098 $d
+/var/folders/qx/3thh6vs13c76w0sbjx53xp240000gn/T//ccVBxBRh.s:192    .bss:0000000000000000 loop.4025
+/var/folders/qx/3thh6vs13c76w0sbjx53xp240000gn/T//ccVBxBRh.s:191    .bss:0000000000000000 $d
                      .debug_frame:0000000000000010 $d
                            .group:0000000000000000 wm4.0.0c5e979f1ec464b8f03bc190bd321363
                            .group:0000000000000000 wm4.redlib_version.h.14.62abddb5b4efb2dd619a7dca5647eb78

@@ -10,9 +10,10 @@ extern int pdm(int* base, int ncol, int index);
 #define M 3
 
 // Part II: PFAm
-float pfa()
+float pfa(int* CM, int index)
 {
 	// write the code for pfa(CM,M,index) here
+
 	return 1.234;
 }
 
@@ -31,7 +32,7 @@ int main(void)
 	printf("\n");
 
 	for (index=0; index<M; index++)
-		printf("%f \n", pfa()); // modify to pfa(CM,M,index)
+		printf("%f \n", pfa(CM, index)); // modify to pfa(CM,M,index)
 
 	// Enter an infinite loop, just incrementing a counter
 	volatile static int loop = 0;

@@ -14,10 +14,10 @@ pdm:
 	MUL R4, R1, R4
 	MUL R5, R1, R4
 
-	MOV R6, #0X04
+	MOV R6, #0x04
 	MUL R6, R2, R6 	@ initialized offset pointer to index
 	MOV R7, #0x00	@ initialized iteration counter
-	MOV R8, #0X00	@ initialized sum
+	MOV R8, #0x00	@ initialized sum
 
 loop:
 	LDR R9, [R0, +R6]
@@ -34,6 +34,8 @@ loop:
 	CMP R6, R5
 	BLE loop
 
+	LDR R4, =10000
+	MUL R10, R4, R10
 	UDIV R0, R10, R8
 	POP {R4-R10}
 	BX	LR
