@@ -13,8 +13,25 @@ extern int pdm(int* base, int ncol, int index);
 float pfa(int* CM, int index)
 {
 	// write the code for pfa(CM,M,index) here
+	int false_pos;
+	int notm;
+	int i,j;
 
-	return 1.234;
+	// gets all the false positives
+	for(i=0; i<=M; i++){
+		if(i!=index)
+			false_pos += *((CM+i*M) + index);
+	}
+
+	for(i=0; i<=M; i++){
+		if(i!=index){
+			for(j=0; j<=M; j++) {
+				notm += *((CM+i*M) + j);
+			}
+		}
+	}
+
+	return (float)(false_pos/notm);
 }
 
 int main(void)
@@ -32,7 +49,7 @@ int main(void)
 	printf("\n");
 
 	for (index=0; index<M; index++)
-		printf("%f \n", pfa(CM, index)); // modify to pfa(CM,M,index)
+		printf("%f \n", pfa((int*)CM, index)); // modify to pfa(CM,M,index)
 
 	// Enter an infinite loop, just incrementing a counter
 	volatile static int loop = 0;
