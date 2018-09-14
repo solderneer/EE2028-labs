@@ -13,25 +13,25 @@ extern int pdm(int* base, int ncol, int index);
 float pfa(int* CM, int index)
 {
 	// write the code for pfa(CM,M,index) here
-	int false_pos;
-	int notm;
+	int false_pos = 0;
+	int notm = 0;
 	int i,j;
 
 	// gets all the false positives
-	for(i=0; i<=M; i++){
+	for(i=0; i<M; i++){
 		if(i!=index)
 			false_pos += *((CM+i*M) + index);
 	}
 
-	for(i=0; i<=M; i++){
+	for(i=0; i<M; i++){
 		if(i!=index){
-			for(j=0; j<=M; j++) {
+			for(j=0; j<M; j++) {
 				notm += *((CM+i*M) + j);
 			}
 		}
 	}
 
-	return (float)(false_pos/notm);
+	return ((float)false_pos/(float)notm);
 }
 
 int main(void)

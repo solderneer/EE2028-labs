@@ -29,14 +29,14 @@ all: EE2028Asmt1S1AY201819.axf
 EE2028Asmt1S1AY201819.axf: $(OBJS) $(USER_OBJS)
 	@echo 'Building target: $@'
 	@echo 'Invoking: MCU Linker'
-	arm-none-eabi-gcc -nostdlib -L"/Users/solderneer/Documents/LPCXpresso_8.2.2/workspace/Lib_CMSISv1p30_LPC17xx/Debug" -Xlinker --gc-sections -Xlinker -Map=EE2028Asmt1S1AY201819.map -mcpu=cortex-m3 -mthumb -T "EE2028Asmt1S1AY201819_Debug.ld" -o"EE2028Asmt1S1AY201819.axf" $(OBJS) $(USER_OBJS) $(LIBS)
+	arm-none-eabi-gcc -nostdlib -L"D:\MyWork111\Lib_CMSISv1p30_LPC17xx\Debug" -Xlinker --gc-sections -Xlinker -Map=EE2028Asmt1S1AY201819.map -mcpu=cortex-m3 -mthumb -T "EE2028Asmt1S1AY201819_Debug.ld" -o"EE2028Asmt1S1AY201819.axf" $(OBJS) $(USER_OBJS) $(LIBS)
 	@echo 'Finished building target: $@'
 	@echo ' '
 	$(MAKE) --no-print-directory post-build
 
 # Other Targets
 clean:
-	-$(RM) $(EXECUTABLES)$(OBJS)$(C_DEPS) EE2028Asmt1S1AY201819.axf
+	-$(RM) $(OBJS)$(C_DEPS)$(EXECUTABLES) EE2028Asmt1S1AY201819.axf
 	-@echo ' '
 
 post-build:
