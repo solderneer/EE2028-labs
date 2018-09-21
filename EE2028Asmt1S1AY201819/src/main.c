@@ -17,17 +17,12 @@ float pfa(int* CM, int index)
 	int notm = 0;
 	int i,j;
 
-	// gets all the false positives
-	for(i=0; i<M; i++){
-		if(i!=index)
-			false_pos += *((CM+i*M) + index);
-	}
-
 	for(i=0; i<M; i++){
 		if(i!=index){
 			for(j=0; j<M; j++) {
 				notm += *((CM+i*M) + j);
 			}
+			false_pos += *((CM+i*M) + index);
 		}
 	}
 
