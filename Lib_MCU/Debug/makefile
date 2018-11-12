@@ -8,8 +8,8 @@ RM := rm -rf
 
 # All of the sources participating in the build are defined here
 -include sources.mk
--include subdir.mk
 -include src/subdir.mk
+-include subdir.mk
 -include objects.mk
 
 ifneq ($(MAKECMDGOALS),clean)
@@ -29,14 +29,14 @@ all: libLib_MCU.a
 libLib_MCU.a: $(OBJS) $(USER_OBJS)
 	@echo 'Building target: $@'
 	@echo 'Invoking: MCU Archiver'
-	arm-none-eabi-ar -r "libLib_MCU.a" $(OBJS) $(USER_OBJS) $(LIBS)
+	arm-none-eabi-ar -r  "libLib_MCU.a" $(OBJS) $(USER_OBJS) $(LIBS)
 	@echo 'Finished building target: $@'
 	@echo ' '
 	$(MAKE) --no-print-directory post-build
 
 # Other Targets
 clean:
-	-$(RM) $(OBJS)$(C_DEPS)$(ARCHIVES) libLib_MCU.a
+	-$(RM) $(OBJS)$(ARCHIVES)$(C_DEPS) libLib_MCU.a
 	-@echo ' '
 
 post-build:
