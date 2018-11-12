@@ -31,17 +31,6 @@ void SysTick_Handler(void) {
   msTicks++;
 }
 
-void EINT3_IRQHandler(void)
-{
-	// Determine if the correct interrupt was triggered
-	if ((LPC_GPIOINT->IO2IntStatF>>10)& 0x1)
-	{
-        printf("GPIO Interrupt 2.10\n");
-        // Clear GPIO Interrupt P2.10
-        LPC_GPIOINT->IO2IntClr = 1<<10;
-	}
-}
-
 uint32_t get_ticks(void) {
 	return msTicks;
 }
@@ -137,40 +126,16 @@ static void init_gpio(void) {
 	PinCfg.Pinnum = PINSEL_PIN_2;
 	PINSEL_ConfigPin(&PinCfg);
 
-	// Configuring for SW4
-	PinCfg.Portnum = 1;
-	PinCfg.Pinnum = 31;
-	PINSEL_ConfigPin(&PinCfg);
 }
 
 // Print everything nicely to the screen!
 static void output_oled(uint8_t mode, uint8_t flags, uint32_t acc, int32_t temp, uint32_t light) {
-	char str_buffer[0];
-	oled_clearScreen(OLED_COLOR_BLACK);
 	switch(mode) {
 		case INITIALIZATION_MODE:
 			oled_putString(0, 0, "Mode: Initialization", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 			break;
 		case CLIMB_MODE:
 			oled_putString(0, 0, "Mode: Climbing", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-
-			// Checking status flag
-			if((flags && 0x01) && (flags && 0x02))
-				oled_putString(0, 10, "Status: REST NOW, DIM", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-			else if(flags && 0x01)
-				oled_putString(0, 10, "Status: REST NOW", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-			else if(flags && 0x02)
-				oled_putString(0, 10, "Status: DIM", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-			else
-				oled_putString(0, 10, "Status: none", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-
-			// Printing all sensor values
-			sprintf(str_buffer, "Acc: %f", (acc/1000));
-			oled_putString(0, 20, str_buffer, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-			sprintf(str_buffer, "Temp: %f", (temp/10));
-			oled_putString(0, 30, str_buffer, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-			sprintf(str_buffer, "Light: %f", light);
-			oled_putString(0, 30, str_buffer, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 			break;
 		case EMERGENCY_MODE:
 			oled_putString(0, 0, "Mode: Emergency", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
@@ -198,8 +163,9 @@ int main(void) {
 	uint32_t light = 0;
 	uint8_t bar_strength = 0;
 
-	// Triggered flags LSB=temp LSB+1=light
-	int8_t flag = 0;
+	// Triggered flags (should optimize to use a single byte)
+	int8_t temp_flg = 0;
+	int8_t light_flg = 0;
 
 
 	char display[10];
@@ -222,71 +188,83 @@ int main(void) {
 	pca9532_init();
 	light_init();
 
-	while(1) {
-		switch(mode) {
-			case INITIALIZATION_MODE:
-				break;
-			case CLIMB_MODE:
-				// Enabling sensors
-				light_enable();
+	switch(mode) {
+		case INITIALIZATION_MODE:
+			break;
+		case CLIMB_MODE:
+			// Enabling sensors
+			light_enable();
 
-				// Calibrate accelerometer to zero value
+			// Calibrate accelerometer to zero value
+			acc_read(&acc_x, &acc_y, &acc_z);
+			acc_xoff = 0 - acc_x;
+			acc_yoff = 0 - acc_y;
+			acc_zoff = 0 - acc_z;
+
+			oled_clearScreen(OLED_COLOR_BLACK);
+			while(1) {
+				// Reading from all the sensors
 				acc_read(&acc_x, &acc_y, &acc_z);
-				acc_xoff = 0 - acc_x;
-				acc_yoff = 0 - acc_y;
-				acc_zoff = 0 - acc_z;
+				temp = temp_read();
+				light = light_read();
 
-				oled_clearScreen(OLED_COLOR_BLACK);
-				while(1) {
-					// Reading from all the sensors
-					acc_read(&acc_x, &acc_y, &acc_z);
-					temp = temp_read();
-					light = light_read();
+				// Calculating calibrated XYZ acceleration
+				acc_x = acc_x + acc_xoff;
+				acc_y = acc_y + acc_yoff;
+				acc_z = acc_z + acc_zoff;
 
-					// Calculating calibrated XYZ acceleration
-					acc_x = acc_x + acc_xoff;
-					acc_y = acc_y + acc_yoff;
-					acc_z = acc_z + acc_zoff;
+				// Calculating net acceleration in mg
+				acc_net = sqrt(acc_x*acc_x + acc_y*acc_y + acc_z*acc_z) * 16; // in for ~16mg/LSB
 
-					// Calculating net acceleration in mg
-					acc_net = sqrt(acc_x*acc_x + acc_y*acc_y + acc_z*acc_z) * 16; // in for ~16mg/LSB
-
-					// Fall detected
-					if(acc_net > ACC_THRESHOLD) {
-						mode = EMERGENCY_MODE;
-						break;
-					}
-
-					// Body temperature monitoring
-					if((temp > TEMP_THRESHOLD) && ((flag && 0x01) != 1)) {
-						flag |= 0x01;
-						temp_tick = msTicks; // Set 3000ms timer
-					}
-
-					if(msTicks - temp_tick < 3000)
-						oled_putString(5, 30, "REST NOW", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-					if(temp < TEMP_THRESHOLD)
-						flag &= 0xFE;
-
-					// Ambient light monitoring
-					if(light < LIGHT_THRESHOLD) {
-						flag |= 0x02;
-						bar_strength = ((3000 - light) / 186); // Scaling to 16 bits
-						bar_light(bar_strength);
-					} else if(flag && 0x02) {
-						bar_light(0);
-						flag &= 0xFD;
-					}
-
-					// Print to OLED screen
-					output_oled(mode, flag, acc_net, temp, light);
+				// Fall detected
+				if(acc_net > ACC_THRESHOLD) {
+					mode = EMERGENCY_MODE;
+					break;
 				}
-				break;
-			case EMERGENCY_MODE:
-				break;
-			default:
-				mode = INITIALIZATION_MODE;
-		}
+
+				// Body temperature monitoring
+				if((temp > TEMP_THRESHOLD) && (temp_flg != 1)) {
+					temp_flg = 1;
+					temp_tick = msTicks; // Set 3000ms timer
+				}
+
+				if(msTicks - temp_tick < 3000)
+					oled_putString(5, 30, "REST NOW", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+				if(temp < TEMP_THRESHOLD)
+					temp_flg = 0;
+
+				// Ambient light monitoring
+				if(light < LIGHT_THRESHOLD) {
+					light_flg = 1;
+					bar_strength = ((3000 - light) / 186); // Scaling to 16 bits
+					bar_light(bar_strength);
+				} else if(light_flg == 1)
+					bar_light(0);
+
+
+
+			}
+			break;
+		case EMERGENCY_MODE:
+			break;
+		default:
+			mode = INITIALIZATION_MODE;
+	}
+
+	//led7seg_setChar('1', 0);
+
+	while(1) {
+		acc_read(&x, &y, &z);
+		temp = temp_read();
+		x = x + xoff;
+		y = y + yoff;
+		z = z + zoff;
+
+		// acc_net = sqrt(x*x + y*y + z*z);
+		sprintf(display, "%d,%d,%d,%d", x, y, z, temp);
+		oled_clearScreen(OLED_COLOR_BLACK);
+		oled_putString(5, 30, display, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+		systick_delay(500);
 	}
 }
 
