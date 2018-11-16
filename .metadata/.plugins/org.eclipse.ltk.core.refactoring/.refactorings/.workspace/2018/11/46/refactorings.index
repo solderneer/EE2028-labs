@@ -3,3 +3,7 @@
 1541981195423	Delete resource 'LPC1769_asm_blinky'
 1541981200132	Delete resource 'LPC1769_CMSIS_MCU_blinky'
 1541982054026	Rename resource 'demo'
+1542272578542	Delete resource 'FitNUS/inc/led.h'
+1542272584038	Delete resource 'FitNUS/src/led.c'
+1542273313237	Delete resource 'FitNUS/inc/uart.h'
+1542273320777	Delete resource 'FitNUS/inc'

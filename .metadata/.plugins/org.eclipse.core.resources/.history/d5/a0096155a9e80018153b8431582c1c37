@@ -1,0 +1,502 @@
+/*****************************************************************************
+ *   A demo example using several of the peripherals on the base board
+ *
+ *   Copyright(C) 2011, EE2024
+ *   All rights reserved.
+ *
+ ******************************************************************************/
+
+#include "lpc17xx_pinsel.h"
+#include "lpc17xx_gpio.h"
+#include "lpc17xx_i2c.h"
+#include "lpc17xx_ssp.h"
+#include "lpc17xx_timer.h"
+#include "lpc17xx_uart.h"
+
+#include "acc.h"
+#include "oled.h"
+#include "temp.h"
+#include "light.h"
+
+// State machine mode defs
+#define INITIALIZATION_MODE 1
+#define CLIMB_MODE 2
+#define EMERGENCY_MODE 3
+
+// Thresholds
+#define ACC_THRESHOLD 100
+#define TEMP_THRESHOLD 280
+#define LIGHT_THRESHOLD 2000
+
+// LED shorthands
+#define BLUE_PIN (1<<26)
+#define BLUE_PORT 0
+#define RED_PIN (1<<0)
+#define RED_PORT 2
+#define GREEN_PIN (1<<1)
+#define GREEN_PORT 2
+
+#define BLINK_BLUE 1
+#define ALTERNATE 2
+
+volatile uint32_t msTicks;
+volatile uint8_t sw3Flag;
+
+uint8_t ledMode = 0; // Global controlling LED state
+
+uint32_t get_ticks(void) {
+	return msTicks;
+}
+
+__INLINE static void systick_delay (uint32_t delayTicks) {
+  uint32_t currentTicks;
+  currentTicks = msTicks;
+  while ((msTicks - currentTicks) < delayTicks);
+}
+
+static void init_i2c(void) {
+	PINSEL_CFG_Type PinCfg;
+
+	/* Initialize I2C2 pin connect */
+	PinCfg.Funcnum = 2;
+	PinCfg.Pinnum = 10;
+	PinCfg.Portnum = 0;
+	PINSEL_ConfigPin(&PinCfg);
+	PinCfg.Pinnum = 11;
+	PINSEL_ConfigPin(&PinCfg);
+
+	// Initialize I2C peripheral
+	I2C_Init(LPC_I2C2, 100000);
+
+	/* Enable I2C1 operation */
+	I2C_Cmd(LPC_I2C2, ENABLE);
+}
+
+static void init_ssp(void) {
+	SSP_CFG_Type SSP_ConfigStruct;
+	PINSEL_CFG_Type PinCfg;
+
+	/*
+	 * Initialize SPI pin connect
+	 * P0.7 - SCK;
+	 * P0.8 - MISO
+	 * P0.9 - MOSI
+	 * P2.2 - SSEL - used as GPIO
+	 */
+	PinCfg.Funcnum = 2;
+	PinCfg.OpenDrain = 0;
+	PinCfg.Pinmode = 0;
+	PinCfg.Portnum = 0;
+	PinCfg.Pinnum = 7;
+	PINSEL_ConfigPin(&PinCfg);
+	PinCfg.Pinnum = 8;
+	PINSEL_ConfigPin(&PinCfg);
+	PinCfg.Pinnum = 9;
+	PINSEL_ConfigPin(&PinCfg);
+	PinCfg.Funcnum = 0;
+	PinCfg.Portnum = 2;
+	PinCfg.Pinnum = 2;
+	PINSEL_ConfigPin(&PinCfg);
+
+	SSP_ConfigStructInit(&SSP_ConfigStruct);
+
+	// Initialize SSP peripheral with parameter given in structure above
+	SSP_Init(LPC_SSP1, &SSP_ConfigStruct);
+
+	// Enable SSP peripheral
+	SSP_Cmd(LPC_SSP1, ENABLE);
+
+}
+
+static void init_uart(void) {
+
+}
+
+static void bar_light(uint8_t i) {
+	i = (i % 16);
+
+	if(i > 0) {
+		uint16_t onMask = 0x0000;
+		uint8_t count = 0;
+		while(count < i) {
+			onMask |= (1 << count);
+			count++;
+		}
+		pca9532_setLeds(onMask, 0xFFFF);
+	} else {
+		pca9532_setLeds(0, 0xFFFF);
+	}
+}
+
+static void init_gpio(void) {
+	PINSEL_CFG_Type PinCfg;
+
+	// Configuring for temperature sensor
+	PinCfg.Funcnum = PINSEL_FUNC_0;
+	PinCfg.OpenDrain = PINSEL_PINMODE_NORMAL;
+	PinCfg.Pinmode = PINSEL_PINMODE_PULLUP;
+	PinCfg.Portnum = PINSEL_PORT_0;
+	PinCfg.Pinnum = PINSEL_PIN_2;
+	PINSEL_ConfigPin(&PinCfg);
+
+	// Configuring for SW4
+	PinCfg.Portnum = 1;
+	PinCfg.Pinnum = 31;
+	PINSEL_ConfigPin(&PinCfg);
+
+	// Configuring for RGB
+	PinCfg.Portnum = 0;
+	PinCfg.Pinnum = 26;
+	PINSEL_ConfigPin(&PinCfg); // BLUE
+	PinCfg.Portnum = 2;
+	PinCfg.Pinnum = 0;
+	PINSEL_ConfigPin(&PinCfg); // RED
+
+	GPIO_SetDir(BLUE_PORT, BLUE_PIN, 1); // BLUE direction
+	GPIO_SetDir(RED_PORT, RED_PIN, 1); // RED direction
+}
+
+static void init_timer0(void) {
+	TIM_TIMERCFG_Type TIM_ConfigStruct;
+	TIM_MATCHCFG_Type TIM_MatchConfigStruct;
+
+	TIM_ConfigStruct.PrescaleOption = TIM_PRESCALE_USVAL;
+	TIM_ConfigStruct.PrescaleValue	= 1000;
+
+	TIM_MatchConfigStruct.MatchChannel = 0;
+	TIM_MatchConfigStruct.IntOnMatch   = TRUE;
+	TIM_MatchConfigStruct.ResetOnMatch = TRUE;
+	TIM_MatchConfigStruct.StopOnMatch = FALSE;
+	TIM_MatchConfigStruct.ExtMatchOutputType = TIM_EXTMATCH_NOTHING;
+	TIM_MatchConfigStruct.MatchValue = 500;
+
+	// Set configuration for Tim_config and Tim_MatchConfig
+	TIM_Init(LPC_TIM0, TIM_TIMER_MODE,&TIM_ConfigStruct);
+	TIM_ConfigMatch(LPC_TIM0,&TIM_MatchConfigStruct);
+}
+
+static void toggle_blueled(void) {
+	uint32_t current = GPIO_ReadValue(BLUE_PORT);
+	GPIO_ClearValue(BLUE_PORT,(current & BLUE_PIN));
+	GPIO_SetValue(BLUE_PORT,((~current) & BLUE_PIN));
+}
+
+static void toggle_redled(void) {
+	uint32_t current = GPIO_ReadValue(RED_PORT);
+	GPIO_ClearValue(RED_PORT,(current & RED_PIN));
+	GPIO_SetValue(RED_PORT,((~current) & RED_PIN));
+}
+
+uint32_t SquareRootRounded(uint32_t a_nInput)
+{
+    uint32_t op  = a_nInput;
+    uint32_t res = 0;
+    uint32_t one = 1uL << 30; // The second-to-top bit is set: use 1u << 14 for uint16_t type; use 1uL<<30 for uint32_t type
+
+    // "one" starts at the highest power of four <= than the argument.
+    while (one > op)
+    	one >>= 2;
+
+    while (one != 0) {
+        if (op >= res + one) {
+            op = op - (res + one);
+            res = res +  2 * one;
+        }
+        res >>= 1;
+        one >>= 2;
+    }
+
+    /* Do arithmetic rounding to nearest integer */
+    if (op > res)
+        res++;
+
+    return res;
+}
+
+// Interrupt handler
+void SysTick_Handler(void) {
+  msTicks++;
+}
+
+void EINT3_IRQHandler(void) {
+	// Determine if the correct interrupt was triggered
+	if ((LPC_GPIOINT->IO2IntStatF>>10)& 0x1) {
+        sw3Flag = 1;
+        // Clear GPIO Interrupt P2.10
+        LPC_GPIOINT->IO2IntClr = 1<<10;
+	}
+}
+
+void TIMER0_IRQHandler(void) {
+	if(TIM_GetIntStatus(LPC_TIM0,0)) {
+		if(ledMode == BLINK_BLUE)
+			toggle_blueled();
+		else if(ledMode == ALTERNATE) {
+			toggle_blueled();
+			toggle_redled();
+		}
+		TIM_ClearIntPending(LPC_TIM0,0);
+	}
+}
+
+int main(void) {
+	// Accelerometer variables
+	int32_t acc_xoff = 0;
+	int32_t acc_yoff = 0;
+	int32_t acc_zoff = 0;
+	uint32_t acc_net = 0;
+	int8_t acc_x = 0;
+	int8_t acc_y = 0;
+	int8_t acc_z = 0;
+
+	// Temperature variables
+	int32_t temp = 0;
+
+	// Light sensor variables
+	uint32_t light = 0;
+	uint8_t bar_strength = 0;
+
+	// Triggered flags LSB=temp LSB+1=light
+	int8_t flag = 0;
+
+	// SW4 state
+	int8_t sw4 = 0;
+
+	// General variables
+	uint8_t seg_cnt = 9;
+	uint32_t current_tick = 0;
+	uint32_t transmit_tick = 0;
+	uint32_t emergency_time = 0;
+	uint8_t mode = INITIALIZATION_MODE;
+	char str_buffer[40];
+
+	// message
+	char msg_buffer[5] = "SAUED";
+
+	// Setup SysTick Timer to interrupt at 1 msec intervals
+	if (SysTick_Config(SystemCoreClock / 1000)) {
+		while (1);  // Capture error
+	}
+
+	// Setup interrupt
+	LPC_GPIOINT->IO2IntEnF |= 1<<10;
+	NVIC_EnableIRQ(EINT3_IRQn);
+	NVIC_EnableIRQ(TIMER0_IRQn);
+
+	init_i2c();
+	init_ssp();
+	init_gpio();
+	init_timer0();
+	uart2_init(115200, CHANNEL_B);
+
+	acc_init();
+	oled_init();
+	temp_init(&get_ticks);
+	led7seg_init();
+	pca9532_init();
+	light_init();
+	light_enable();
+
+	// resetting all peripherals
+	oled_clearScreen(OLED_COLOR_BLACK);
+
+	GPIO_ClearValue(BLUE_PORT, BLUE_PIN);
+	GPIO_ClearValue(RED_PORT, RED_PIN);
+
+	led7seg_setChar(' ', 0);
+
+	while(1) {
+		switch(mode) {
+			case INITIALIZATION_MODE:
+				oled_putString(0, 0, "INITIALIZATION...", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+				if(sw3Flag) {
+					sw3Flag = 0; // Clear flag
+					oled_putString(0, 0, "INITIALIZATION   ", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+					oled_putString(0, 10, "COMPLETE", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+					oled_putString(0, 20, "ENTERING CLIMB", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+					oled_putString(0, 30, "MODE", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+
+					// Setting init state
+					GPIO_SetValue(BLUE_PORT, BLUE_PIN);
+
+					// Setting blinker
+					ledMode = BLINK_BLUE;
+					TIM_Cmd(LPC_TIM0,ENABLE);
+
+					current_tick = msTicks;
+					for(seg_cnt=9;seg_cnt>0;seg_cnt--) {
+						led7seg_setChar(('0' + seg_cnt), 0);
+						while((msTicks - current_tick) < 500);
+						current_tick = msTicks;
+					}
+
+					led7seg_setChar('0', 0);
+					systick_delay(500);
+					led7seg_setChar(' ', 0);
+					TIM_Cmd(LPC_TIM0,DISABLE);
+					GPIO_ClearValue(BLUE_PORT, BLUE_PIN);
+					mode = CLIMB_MODE;
+				}
+				break;
+			case CLIMB_MODE:
+				// Starting with cleared screen
+				oled_clearScreen(OLED_COLOR_BLACK);
+				led7seg_setChar(' ', 0);
+
+				oled_putString(0, 0, "CLIMB MODE", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+				uart2_sendString("CLIMB mode\n");
+
+				// Calibrate accelerometer to zero value
+				acc_read(&acc_x, &acc_y, &acc_z);
+				acc_xoff = 0 - acc_x;
+				acc_yoff = 0 - acc_y;
+				acc_zoff = 0 - acc_z;
+
+				// Setting transmit tick
+				transmit_tick = msTicks;
+				while(1) {
+					// Reading from all the sensors
+					acc_read(&acc_x, &acc_y, &acc_z);
+					temp = temp_read();
+					light = light_read();
+
+					// Calculating calibrated XYZ acceleration
+					acc_x = (acc_x + acc_xoff) * 16;
+					acc_y = (acc_y + acc_yoff) * 16;
+					acc_z = (acc_z + acc_zoff) * 16;
+
+					// Calculating net acceleration in mg
+					acc_net = (uint32_t)(acc_x*acc_x + acc_y*acc_y + acc_z*acc_z); // in for ~16mg/LSB
+					acc_net = SquareRootRounded(acc_net);
+
+					// Fall detected
+					if(acc_net > ACC_THRESHOLD) {
+						mode = EMERGENCY_MODE;
+						break;
+					}
+
+					// Body temperature monitoring
+					if((temp > TEMP_THRESHOLD) && (!(flag && 0x01))) {
+						oled_putString(0, 10, "REST NOW", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+						flag |= 0x01;
+						current_tick = msTicks; // Set 3000ms timer
+					}
+
+					if(msTicks - current_tick > 3000)
+						oled_putString(0, 10, "        ", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+					if(temp < TEMP_THRESHOLD)
+						flag &= 0xFE;
+
+					// Ambient light monitoring
+					if(light < LIGHT_THRESHOLD) {
+						oled_putString(60, 10, "DIM", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+						flag |= 0x02;
+						bar_strength = ((LIGHT_THRESHOLD - light) / 186); // Scaling to 16 bits
+						bar_light(bar_strength);
+					} else if(flag && 0x02) {
+						oled_putString(60, 10, "   ", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+						bar_light(0);
+						flag &= 0xFD;
+					}
+
+					if(msTicks - transmit_tick > 5000) {
+						sprintf(str_buffer, "Acc: %d.%03d g\nTemp: %d.%01d C\nLight: %d lux\n\n", (int)acc_net/1000, (int)acc_net%1000, (int)temp/10, (int)temp%10, light);
+						uart2_sendString(str_buffer);
+						transmit_tick = msTicks;
+					}
+
+					// Print to OLED screen
+					sprintf(str_buffer, "Acc: %d.%03d g", (int)acc_net/1000, (int)acc_net%1000);
+					oled_putString(0, 20, str_buffer, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+					sprintf(str_buffer, "Temp: %d.%01d C", (int)temp/10, (int)temp%10);
+					oled_putString(0, 30, str_buffer, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+					sprintf(str_buffer, "Light: %d lux   ", light);
+					oled_putString(0, 40, str_buffer, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+				}
+				break;
+			case EMERGENCY_MODE:
+				// Reset state
+				sw3Flag = 0; // Clear flag
+				sw4 = 0;
+				emergency_time = msTicks;
+				oled_clearScreen(OLED_COLOR_BLACK);
+				led7seg_setChar(' ', 0);
+				oled_putString(0, 0, "EMERGENCY MODE", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+				uart2_sendString("EMERGENCY\n");
+
+				// Setting LED State
+				GPIO_SetValue(BLUE_PORT, BLUE_PIN);
+				GPIO_ClearValue(RED_PORT, RED_PIN);
+
+				// Trigger timer0
+				ledMode = ALTERNATE;
+				TIM_Cmd(LPC_TIM0,ENABLE);
+				transmit_tick = msTicks;
+				while(1) {
+					// Reading from all the sensors
+					acc_read(&acc_x, &acc_y, &acc_z);
+					temp = temp_read();
+					sw4 = GPIO_ReadValue(1) && (1 << 31);
+
+					if(sw4 && sw3Flag) {
+						break; // Exit loop because recovery
+					}
+
+					// Calculating calibrated XYZ acceleration
+					acc_x = (acc_x + acc_xoff) * 16;
+					acc_y = (acc_y + acc_yoff) * 16;
+					acc_z = (acc_z + acc_zoff) * 16;
+
+					// Calculating net acceleration in mg
+					acc_net = (uint32_t)(acc_x*acc_x + acc_y*acc_y + acc_z*acc_z); // in for ~16mg/LSB
+					acc_net = SquareRootRounded(acc_net);
+
+					if(msTicks - transmit_tick > 5000) {
+						sprintf(str_buffer, "Acc: %d.%03d g\nTemp: %d.%01d C\nTimer: %d s\n\n", (int)acc_net/1000, (int)acc_net%1000, (int)temp/10, (int)temp%10, (msTicks - emergency_time)/1000);
+						uart2_sendString(str_buffer);
+						transmit_tick = msTicks;
+					}
+
+					sprintf(str_buffer, "Acc: %d.%03d g", (int)acc_net/1000, (int)acc_net%1000);
+					oled_putString(0, 20, str_buffer, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+					sprintf(str_buffer, "Temp: %d.%01d C", (int)temp/10, (int)temp%10);
+					oled_putString(0, 30, str_buffer, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+					sprintf(str_buffer, "Timer: %d s", (msTicks - emergency_time)/1000 );
+					oled_putString(0, 40, str_buffer, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+				}
+				// Print to FitTrackX
+				sprintf(str_buffer, "Emergency is cleared! Time consumed for recovery: %d sec\n\n", (msTicks - emergency_time)/1000);
+				uart2_sendString(str_buffer);
+
+				// Reset LED State
+				GPIO_ClearValue(RED_PORT, RED_PIN);
+				ledMode = BLINK_BLUE;
+
+				current_tick = msTicks;
+				for(seg_cnt=0;seg_cnt<5;seg_cnt++) {
+					led7seg_setChar(msg_buffer[seg_cnt], 0);
+					while((msTicks - current_tick) < 1000);
+					current_tick = msTicks;
+				}
+
+				// Reset led state and switch mode
+				ledMode = 0;
+				GPIO_ClearValue(BLUE_PORT, BLUE_PIN);
+				GPIO_ClearValue(RED_PORT, RED_PIN);
+				mode = CLIMB_MODE;
+				break;
+			default:
+				mode = INITIALIZATION_MODE;
+		}
+	}
+}
+
+void check_failed(uint8_t *file, uint32_t line)
+{
+	/* User can add his own implementation to report the file name and line number,
+	 ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
+
+	/* Infinite loop */
+	while(1);
+}
+

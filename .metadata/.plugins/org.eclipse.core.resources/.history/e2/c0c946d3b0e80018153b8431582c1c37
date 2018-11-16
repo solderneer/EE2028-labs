@@ -1,0 +1,46 @@
+/*
+ * uart.c
+ *
+ *  Created on: Nov 15, 2018
+ *      Author: solderneer
+ */
+// Contains all the utility function for uart
+#include "uart.h"
+#include "lpc17xx_uart.c"
+#include "lpc17xx_pinsel.h"
+
+#define BUFFER_SIZE 256
+
+// Private types
+typedef struct {
+	__IO uint32_t head;
+	__IO uint32_t tail;
+	__IO uint8_t buffer[BUFFER_SIZE];
+} UART_BUFFER;
+
+// Private variables
+UART_BUFFER buffer;
+__IO FlagStatus TxInterrupt;
+
+// Private function prototypes
+void UART0_IRQHandler(void);
+void UART_IntErr(uint8_t bLSErrType);
+void UART_IntTransmit(void);
+
+void init_uart(void) {
+	UART_CFG_Type UARTConfigStruct;
+	PINSEL_CFG_Type PinCfg;
+
+	PinCfg.Funcnum = 2;
+	PinCfg.OpenDrain = 0;
+	PinCfg.Pinmode = 0;
+	PinCfg.Portnum = 0;
+	PinCfg.Pinnum = 0;
+	PINSEL_ConfigPin(&PinCfg);
+	PinCfg.Pinnum = 1;
+	PINSEL_ConfigPin(&PinCfg);
+
+	 UART_ConfigStructInit(&UARTConfigStruct);
+	 UART_Init(LPC_UART3, &UARTConfigStruct);
+	 UART_TxCmd(LPC_UART3, ENABLE);
+}

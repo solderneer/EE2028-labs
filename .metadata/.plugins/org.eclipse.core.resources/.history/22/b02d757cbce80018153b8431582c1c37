@@ -1,0 +1,117 @@
+/*
+ * uart.c
+ *
+ *  Created on: Nov 15, 2018
+ *      Author: solderneer
+ */
+// Contains all the utility function for uart
+#include "uart.h"
+#include "lpc17xx_uart.h"
+#include "lpc17xx_libcfg_default.h"
+#include "lpc17xx_pinsel.h"
+
+#define BUFFER_SIZE 256
+#define __BUF_MASK (BUFFER_SIZE-1)
+#define __BUF_IS_FULL(head, tail) ((tail&__BUF_MASK)==((head+1)&__BUF_MASK))
+#define __BUF_WILL_FULL(head, tail) ((tail&__BUF_MASK)==((head+2)&__BUF_MASK))
+#define __BUF_IS_EMPTY(head, tail) ((head&__BUF_MASK)==(tail&__BUF_MASK))
+#define __BUF_RESET(bufidx)	(bufidx=0)
+#define __BUF_INCR(bufidx)	(bufidx=(bufidx+1)&__BUF_MASK)
+
+// Private types
+typedef struct {
+	__IO uint32_t head;
+	__IO uint32_t tail;
+	__IO uint8_t tx[BUFFER_SIZE];
+} UART_BUFFER;
+
+// Private variables
+UART_BUFFER buffer;
+__IO FlagStatus TxInterrupt;
+
+// Private function prototypes
+void UART_IntTransmit(void);
+
+// Interrupt handler
+void UART3_IRQHandler(void) {
+    UART3_StdIntHandler();
+}
+
+// Other functions
+void UART_IntTransmit(void) {
+	UART_IntConfig(LPC_UART3, UART_INTCFG_THRE, DISABLE);
+
+	while(UART_CheckBusy(LPC_UART3) == SET);
+
+	while (!__BUF_IS_EMPTY(buffer.head,buffer.tail)) {
+		if (UART_Send(LPC_UART3, (uint8_t *)&buffer.tx[buffer.tail], 1, NONE_BLOCKING)){
+			__BUF_INCR(buffer.tail);
+		} else {
+			break;
+		}
+	}
+
+	if (__BUF_IS_EMPTY(buffer.head, buffer.tail)) {
+		UART_IntConfig(LPC_UART3, UART_INTCFG_THRE, DISABLE);
+		TxInterrupt = RESET;
+	} else {
+		TxInterrupt = SET;
+		UART_IntConfig(LPC_UART3, UART_INTCFG_THRE, ENABLE);
+	}
+
+}
+
+void send_uart(LPC_UART_TypeDef *UARTPort, uint8_t *txbuf, uint8_t buflen) {
+    uint8_t *data = (uint8_t *) txbuf;
+
+    UART_IntConfig(UARTPort, UART_INTCFG_THRE, DISABLE);
+
+	while ((buflen > 0) && (!__BUF_IS_FULL(buffer.head, buffer.tail))) {
+		buffer.tx[buffer.head] = *data;
+		__BUF_INCR(buffer.head);
+		buflen--;
+		data++;
+	}
+
+	if (TxInterrupt == RESET) {
+		UART_IntTransmit();
+	} else {
+		UART_IntConfig(UARTPort, UART_INTCFG_THRE, ENABLE);
+	}
+}
+
+void send_uartstring(LPC_UART_TypeDef *UARTPort, uint8_t *txbuf) {
+	send_uart(UARTPort, txbuf, strlen(txbuf));
+}
+
+void init_uart(void) {
+	UART_CFG_Type UARTConfigStruct;
+	UART_FIFO_CFG_Type UARTFIFOConfigStruct;
+	PINSEL_CFG_Type PinCfg;
+
+	PinCfg.Funcnum = 2;
+	PinCfg.OpenDrain = 0;
+	PinCfg.Pinmode = 0;
+	PinCfg.Portnum = 0;
+	PinCfg.Pinnum = 0;
+	PINSEL_ConfigPin(&PinCfg);
+	PinCfg.Pinnum = 1;
+	PINSEL_ConfigPin(&PinCfg);
+
+	UART_ConfigStructInit(&UARTConfigStruct);
+	UART_Init(LPC_UART3, &UARTConfigStruct);
+
+	UART_FIFOConfigStructInit(&UARTFIFOConfigStruct);
+	UART_FIFOConfig(LPC_UART3, &UARTFIFOConfigStruct);
+	UART_SetupCbs(LPC_UART3, 1, (void *)UART_IntTransmit);
+
+	UART_TxCmd(LPC_UART3, ENABLE);
+
+	TxInterrupt = RESET;
+
+	__BUF_RESET(buffer.head);
+	__BUF_RESET(buffer.tail);
+
+	NVIC_SetPriority(UART3_IRQn, ((0x01<<3)|0x01));
+	NVIC_EnableIRQ(UART3_IRQn);
+}

@@ -1,0 +1,8 @@
+#ifndef LED_H_
+#define LED_H_
+
+void init_leds(void);
+void toggle_blueled(void);
+void toggle_redled(void);
+
+#endif /* LED_H_

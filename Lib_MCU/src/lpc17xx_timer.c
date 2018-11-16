@@ -474,7 +474,7 @@ uint32_t TIM_GetCaptureValue(LPC_TIM_TypeDef *TIMx, uint8_t CaptureChannel)
 void Timer0_Wait(uint32_t time)
 {
 	TIM_TIMERCFG_Type TIM_ConfigStruct;
-	TIM_MATCHCFG_Type TIM_MatchConfigStruct ;
+	TIM_MATCHCFG_Type TIM_MatchConfigStruct;
 
 // Initialize timer 0, prescale count time of 1ms
 	TIM_ConfigStruct.PrescaleOption = TIM_PRESCALE_USVAL;

@@ -8,9 +8,13 @@ src/main.o src/main.d: ../src/main.c \
  /Users/solderneer/Documents/Projects/EE2028-labs/Lib_MCU/inc/lpc17xx_i2c.h \
  /Users/solderneer/Documents/Projects/EE2028-labs/Lib_MCU/inc/lpc17xx_ssp.h \
  /Users/solderneer/Documents/Projects/EE2028-labs/Lib_MCU/inc/lpc17xx_timer.h \
+ /Users/solderneer/Documents/Projects/EE2028-labs/Lib_MCU/inc/lpc17xx_uart.h \
  /Users/solderneer/Documents/Projects/EE2028-labs/Lib_EaBaseBoard/inc/acc.h \
  /Users/solderneer/Documents/Projects/EE2028-labs/Lib_EaBaseBoard/inc/oled.h \
- /Users/solderneer/Documents/Projects/EE2028-labs/Lib_EaBaseBoard/inc/temp.h
+ /Users/solderneer/Documents/Projects/EE2028-labs/Lib_EaBaseBoard/inc/temp.h \
+ /Users/solderneer/Documents/Projects/EE2028-labs/Lib_EaBaseBoard/inc/light.h \
+ ../src/uart.h \
+ /Users/solderneer/Documents/Projects/EE2028-labs/Lib_MCU/inc/lpc17xx_libcfg_default.h
 
 /Users/solderneer/Documents/Projects/EE2028-labs/Lib_MCU/inc/lpc17xx_pinsel.h:
 
@@ -30,8 +34,16 @@ src/main.o src/main.d: ../src/main.c \
 
 /Users/solderneer/Documents/Projects/EE2028-labs/Lib_MCU/inc/lpc17xx_timer.h:
 
+/Users/solderneer/Documents/Projects/EE2028-labs/Lib_MCU/inc/lpc17xx_uart.h:
+
 /Users/solderneer/Documents/Projects/EE2028-labs/Lib_EaBaseBoard/inc/acc.h:
 
 /Users/solderneer/Documents/Projects/EE2028-labs/Lib_EaBaseBoard/inc/oled.h:
 
 /Users/solderneer/Documents/Projects/EE2028-labs/Lib_EaBaseBoard/inc/temp.h:
+
+/Users/solderneer/Documents/Projects/EE2028-labs/Lib_EaBaseBoard/inc/light.h:
+
+../src/uart.h:
+
+/Users/solderneer/Documents/Projects/EE2028-labs/Lib_MCU/inc/lpc17xx_libcfg_default.h:

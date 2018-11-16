@@ -1,0 +1,9 @@
+#ifndef UART_H_
+#define UART_H_
+
+// Function prototypes
+void send_uart(LPC_UART_TypeDef *UARTPort, uint8_t *txbuf, uint8_t buflen);
+void send_uartstring(LPC_UART_TypeDef *UARTPort, uint8_t *txbuf);
+void init_uart(void);
+
+#endif /* UART_H_
